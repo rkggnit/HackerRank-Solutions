@@ -1,0 +1,35 @@
+name: HackerRank Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Runs automatically at 01:00 UTC every day
+    - cron: "0 1 * * *"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Grants the Action permission to push code
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run Sync Script
+        env:
+          HRANK_SESSION: ${{ secrets.HRANK_SESSION }}
+        run: python sync_hackerrank.py
+
+      - name: Commit and Push Changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Automated HackerRank Sync"

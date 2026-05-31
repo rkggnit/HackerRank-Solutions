@@ -2,11 +2,13 @@ import os
 import requests
 import time
 
-HR_COOKIE = os.environ.get("HRANK_SESSION")
-# We added a highly realistic User-Agent to prevent HackerRank from blocking the script
+# This now pulls the entire raw cookie string directly
+RAW_COOKIE = os.environ.get("HRANK_SESSION")
+
 HEADERS = {
-    "Cookie": f"hrank_session={HR_COOKIE}",
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "Cookie": RAW_COOKIE,
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json"
 }
 BASE_URL = "https://www.hackerrank.com/rest/contests/master/submissions"
 
@@ -24,41 +26,38 @@ def sync_hackerrank():
         print(f"Status Code: {resp.status_code}")
         
         if resp.status_code != 200:
-            print("Failed to authenticate. Your HRANK_SESSION cookie might be invalid.")
+            print("Authorization failed. The session cookie might be expired or incomplete.")
             break
             
         try:
             data = resp.json().get('models', [])
             print(f"Found {len(data)} submissions in this batch.")
         except Exception as e:
-            print("Error parsing JSON. HackerRank might be showing a block page.")
-            print(resp.text[:500])
+            print("Error parsing JSON response.")
             break
             
         if not data:
-            print("No more submissions found. Exiting loop.")
+            print("No more submissions found.")
             break
             
         for sub in data:
             status = sub.get('status')
             slug = sub.get('challenge', {}).get('slug', 'unknown_challenge')
-            print(f"Checking: {slug} | Status: {status}")
             
             if status == 'Accepted':
                 ext = sub.get('language', 'txt')
                 file_path = f"HackerRank/{slug}.{ext}"
                 
                 if os.path.exists(file_path):
-                    print(f"   -> Already downloaded, skipping.")
                     continue
                     
-                print(f"   -> DOWNLOADING NEW SOLUTION: {slug}")
+                print(f"   -> Downloading: {slug}")
                 code_resp = requests.get(f"{BASE_URL}/{sub['id']}", headers=HEADERS)
                 if code_resp.status_code == 200:
                     code = code_resp.json()['model']['code']
                     with open(file_path, "w", encoding="utf-8") as f:
                         f.write(code)
-                time.sleep(1) # Be polite to HackerRank servers
+                time.sleep(1)
                 
         offset += limit
 

@@ -29,6 +29,21 @@ def clean_filename(name):
     # Removes characters that are invalid in Windows/Linux folder names
     return re.sub(r'[\\/*?:"<>|]', "", name).strip()
 
+def clean_challenge_body(html_content):
+    if not html_content:
+        return "Description not found."
+    
+    # 1. Strip out entire <style>...</style> blocks
+    html_content = re.sub(r'<style[^>]*>[\s\S]*?</style>', '', html_content)
+    
+    # 2. Strip out entire <script>...</script> blocks
+    html_content = re.sub(r'<script[^>]*>[\s\S]*?</script>', '', html_content)
+    
+    # 3. Clean up excessive empty newlines left behind
+    html_content = re.sub(r'\n\s*\n', '\n\n', html_content)
+    
+    return html_content.strip()
+
 def sync_hackerrank():
     os.makedirs("HackerRank", exist_ok=True)
     offset = 0
@@ -58,7 +73,7 @@ def sync_hackerrank():
             status = sub.get('status')
             challenge = sub.get('challenge', {})
             slug = challenge.get('slug', 'unknown_challenge')
-            raw_name = challenge.get('name', slug) # E.g., "Solve Me First"
+            raw_name = challenge.get('name', slug)
             
             if status == 'Accepted':
                 clean_name = clean_filename(raw_name)
@@ -72,6 +87,7 @@ def sync_hackerrank():
                 code_file_path = os.path.join(folder_path, f"{clean_name}.{ext}")
                 readme_path = os.path.join(folder_path, "README.md")
                 
+                # If the code already exists, we skip it
                 if os.path.exists(code_file_path):
                     continue
                     
@@ -84,18 +100,19 @@ def sync_hackerrank():
                     with open(code_file_path, "w", encoding="utf-8") as f:
                         f.write(code)
                         
-                # 2. Fetch and save the Question Details
+                # 2. Fetch, clean up, and save the Question Details
                 chal_resp = requests.get(f"{BASE_CHAL_URL}/{slug}", headers=HEADERS)
                 if chal_resp.status_code == 200:
                     chal_data = chal_resp.json().get('model', {})
-                    # HackerRank provides the description in HTML, which GitHub natively renders in Markdown files
-                    body_html = chal_data.get('body_html', 'Description not found.')
+                    body_html = chal_data.get('body_html', '')
                     
-                    readme_content = f"# {raw_name}\n\n{body_html}"
+                    # Run the HTML cleaner filter
+                    cleaned_body = clean_challenge_body(body_html)
+                    
+                    readme_content = f"# {raw_name}\n\n{cleaned_body}"
                     with open(readme_path, "w", encoding="utf-8") as f:
                         f.write(readme_content)
                         
-                # Pause briefly to prevent HackerRank from rate-limiting the script
                 time.sleep(1)
                 
         offset += limit
